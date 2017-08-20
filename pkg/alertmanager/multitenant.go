@@ -75,6 +75,17 @@ const (
 	</body>
 </html>
 `
+
+	// An alertManager configuration used when we cannot parse the stored one
+	fallbackConfig = `
+route:
+  receiver: fallback-webhook
+
+receivers:
+- name: 'fallback-webhook'
+  webhook_configs:
+  - url: 'http://127.0.0.1/bad_alert_config'
+`
 )
 
 var (
@@ -364,18 +375,26 @@ func (am *MultitenantAlertmanager) addNewConfigs(cfgs map[string]configs.View) {
 // setConfig applies the given configuration to the alertmanager for `userID`,
 // creating an alertmanager if it doesn't already exist.
 func (am *MultitenantAlertmanager) setConfig(userID string, config configs.Config) error {
+	_, hasExisting := am.alertmanagers[userID]
 	amConfig, err := configs_client.AlertmanagerConfigFromConfig(config)
 	if err != nil {
-		// XXX: This means that if a user has a working configuration and
-		// they submit a broken one, we'll keep processing the last known
-		// working configuration, and they'll never know.
-		// TODO: Provide a way of communicating this to the user and for removing
-		// Alertmanager instances.
-		return fmt.Errorf("invalid Cortex configuration for %v: %v", userID, err)
+		if hasExisting {
+			// XXX: This means that if a user has a working configuration and
+			// they submit a broken one, we'll keep processing the last known
+			// working configuration, and they'll never know.
+			// TODO: Provide a way of communicating this to the user and for removing
+			// Alertmanager instances.
+			return fmt.Errorf("invalid Cortex configuration for %v: %v", userID, err)
+		}
+		amConfig, err = amconfig.Load(fallbackConfig)
+		if err != nil {
+			return fmt.Errorf("unable to parse fallback config for %v: %v", userID, err)
+		}
+		log.Infof("invalid Cortex configuration; using fallback for %v: %v", userID, err)
 	}
 
 	// If no Alertmanager instance exists for this user yet, start one.
-	if _, ok := am.alertmanagers[userID]; !ok {
+	if !hasExisting {
 		newAM, err := am.newAlertmanager(userID, amConfig)
 		if err != nil {
 			return err
