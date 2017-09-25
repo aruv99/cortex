@@ -185,7 +185,7 @@ func buildNotifierConfig(rulerConfig *Config) (*config.Config, error) {
 }
 
 func (r *Ruler) newGroup(ctx context.Context, rs []rules.Rule) (*rules.Group, error) {
-	appender := appenderAdapter{pusher: r.pusher, ctx: ctx}
+	appendable := &appendableAppender{pusher: r.pusher, ctx: ctx}
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
@@ -195,7 +195,7 @@ func (r *Ruler) newGroup(ctx context.Context, rs []rules.Rule) (*rules.Group, er
 		return nil, err
 	}
 	opts := &rules.ManagerOptions{
-		Appendable:  appender,
+		Appendable:  appendable,
 		QueryEngine: r.engine,
 		Context:     ctx,
 		ExternalURL: r.alertURL,
