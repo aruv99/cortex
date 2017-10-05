@@ -392,7 +392,8 @@ func (am *MultitenantAlertmanager) setConfig(userID string, config configs.Confi
 			return fmt.Errorf("invalid Cortex configuration for %v: %v", userID, err)
 		}
 		if am.fallbackConfig != "" {
-			amConfig, err = amconfig.Load(am.fallbackConfig)
+			expandedConfig := strings.Replace(am.fallbackConfig, "<<ID>>", userID, -1)
+			amConfig, err = amconfig.Load(expandedConfig)
 			if err != nil {
 				return fmt.Errorf("unable to parse fallback config for %v: %v", userID, err)
 			}
